@@ -530,7 +530,7 @@ class LotteryTicketPruner(object):
                     index
                 ], mask
 
-    def calc_prune_mask(self, model, dense_prune_percentage, convolutional_prune_percentage, prune_strategy):
+    def calc_prune_mask(self, model, dense_prune_percentage, prune_strategy, convolutional_prune_percentage=0):
         """ Prunes the specified percentage of the remaining unpruned weights from the model.
         This updates the model's weights such that they are now pruned.
         This also updates the internal pruned weight masks managed by this instance. @see `apply_pruning()`
@@ -560,7 +560,7 @@ class LotteryTicketPruner(object):
                     convolutional_prune_percentage
                 )
             )
-        if not (0.0 < convolutional_prune_percentage < 1.0):
+        if not (0.0 <= convolutional_prune_percentage < 1.0):
             raise ValueError(
                 '"convolutional_prune_percentage" must be between 0.0 and 1.0 exclusive but it was {}'.format(
                     convolutional_prune_percentage
