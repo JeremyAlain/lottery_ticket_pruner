@@ -25,6 +25,7 @@ class PrunerCallback(keras.callbacks.Callback):
         self.pruner = pruner
         self.use_dwr = use_dwr
         self.prune_every_batch_iteration = prune_every_batch_iteration
+        print("Pruning every Batch: {}".format(self.prune_every_batch_iteration))
         self.pruning_iteration = 0
 
     def on_train_end(self, logs=None):

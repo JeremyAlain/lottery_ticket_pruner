@@ -320,23 +320,6 @@ def _prune_func_large_final(
         update_mask_func(tpl, index, new_mask)
 
 
-# def prune_func_same_sign(prunables_iterator, update_mask_func, prune_percentage=None, prune_count=None):
-#     """ Prunes weights across all layers that don't have the same sign as the initial weights.
-#     we look for the smallest N weights across all layers.
-#     @see[Deconstructing Lottery Tickets: Zeros, Signs, and the Supermask]
-#           (https://eng.uber.com/deconstructing-lottery-tickets/)
-#     :param iterable prunables_iterator: A iterator that returns information about what weights are prunable in the
-#         model as tuples:
-#           (tpl, index, prune_percentage, initial_weights, current_weights, current_mask)
-#     :param update_mask_func: A function that can be used to update the mask in the `LotteryTicketPruner` instance
-#     :type update_mask_func: def update_mask_func(tpl, index, new_mask)
-#     :param float prune_percentage:
-#     :returns n/a
-#     """
-#     if prune_percentage is None and prune_count is None:
-#         raise ValueError('Either `prune_percentage` or `prune_count` must be specified')
-#     raise NotImplementedError('Not implemented yet')
-
 
 class LotteryTicketPruner(object):
     """
