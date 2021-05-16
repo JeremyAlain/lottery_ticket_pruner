@@ -1,26 +1,30 @@
 import logging
 import math
 import sys
+import warnings
 
 import tensorflow as tf
 import numpy as np
 
 logger = logging.getLogger("lottery_ticket_pruner")
-convolutional_layer_types = [tf.keras.layers.Conv1D,
-            tf.keras.layers.Conv2D,
-            tf.keras.layers.Conv2DTranspose,
-            tf.keras.layers.Conv3D,
-            tf.keras.layers.Conv3DTranspose,
-            tf.keras.layers.Convolution1D,
-            tf.keras.layers.Convolution2D,
-            tf.keras.layers.Convolution2DTranspose,
-            tf.keras.layers.Convolution3D,
-            tf.keras.layers.Convolution3DTranspose,
-            tf.keras.layers.DepthwiseConv2D,
-            tf.keras.layers.SeparableConv1D,
-            tf.keras.layers.SeparableConv2D,
-            tf.keras.layers.SeparableConvolution1D,
-            tf.keras.layers.SeparableConvolution2D,]
+convolutional_layer_types = [
+    tf.keras.layers.Conv1D,
+    tf.keras.layers.Conv2D,
+    tf.keras.layers.Conv2DTranspose,
+    tf.keras.layers.Conv3D,
+    tf.keras.layers.Conv3DTranspose,
+    tf.keras.layers.Convolution1D,
+    tf.keras.layers.Convolution2D,
+    tf.keras.layers.Convolution2DTranspose,
+    tf.keras.layers.Convolution3D,
+    tf.keras.layers.Convolution3DTranspose,
+    tf.keras.layers.DepthwiseConv2D,
+    tf.keras.layers.SeparableConv1D,
+    tf.keras.layers.SeparableConv2D,
+    tf.keras.layers.SeparableConvolution1D,
+    tf.keras.layers.SeparableConvolution2D,
+]
+
 
 def _prune_func_random(
     initial_weights, pretrained_weights, current_weights, current_mask, prune_percentage
@@ -101,8 +105,14 @@ def _prune_func_smallest_weights(
 
 
 def _prune_func_smallest_weights_layer_dependent_pruning_percentage(
-    initial_weights, pretrained_weights, current_weights, current_mask, dense_prune_percentage, convolutional_prune_percentage,
-        layer, is_output_layer
+    initial_weights,
+    pretrained_weights,
+    current_weights,
+    current_mask,
+    dense_prune_percentage,
+    convolutional_prune_percentage,
+    layer,
+    is_output_layer,
 ):
     """ Prunes the smallest magnitude (absolute value) weights. However it uses a different pruning percentage for
     different kinds of layers.
@@ -153,11 +163,12 @@ def _prune_all_zero_weights(current_weights, current_mask):
     """
     current_weights_flatten = current_weights.flatten()
     current_mask_flatten = current_mask.flatten()
-    prune_indices = np.where(np.absolute(current_weights_flatten)==0)
+    prune_indices = np.where(np.absolute(current_weights_flatten) == 0)
     new_mask_flat = current_mask_flatten
     new_mask_flat[prune_indices] = 0
     new_mask = new_mask_flat.reshape(current_mask.shape)
     return new_mask
+
 
 def _prune_func_smallest_weights_global(
     prunables_iterator, update_mask_func, prune_percentage=None, prune_count=None
@@ -320,7 +331,6 @@ def _prune_func_large_final(
         update_mask_func(tpl, index, new_mask)
 
 
-
 class LotteryTicketPruner(object):
     """
     This class prunes weights from a model and keeps internal state to track which weights have been pruned.
@@ -390,7 +400,6 @@ class LotteryTicketPruner(object):
         self.dense_cumulative_pruning_rate = 0.0
         self.convolutional_cumulative_pruning_rate = 0.0
 
-
     def _verify_compatible_model(self, model):
         # Disabled since there are legit cases where the two models may different. E.g when using transfer learning
         # one may choose to replace, say, a single head layer in the original model with 2 or more layers in the new
@@ -426,9 +435,15 @@ class LotteryTicketPruner(object):
          This is unfortunate since it potentially excludes subclasses of any of the supported keras layers from being
          prunable.
          """
+        if "keras.layers" not in type(layer).__module__:
+            warnings.warn(
+                "The layer is loaded from a saved model and can't be verified that it is a Dense or Conv Layer. It is "
+                "the users's responsiblitiy to make sure that the loaded model is compatible with pruning"
+            )
+
         return (
             len(weights.shape) > 1
-            and "keras.layers" in type(layer).__module__
+            # and "keras.layers" in type(layer).__module__
             and type(layer).__name__ in self.prunable_layer_names
         )
 
@@ -530,7 +545,13 @@ class LotteryTicketPruner(object):
                     index
                 ], mask
 
-    def calc_prune_mask(self, model, dense_prune_percentage, prune_strategy, convolutional_prune_percentage=0):
+    def calc_prune_mask(
+        self,
+        model,
+        dense_prune_percentage,
+        prune_strategy,
+        convolutional_prune_percentage=0,
+    ):
         """ Prunes the specified percentage of the remaining unpruned weights from the model.
         This updates the model's weights such that they are now pruned.
         This also updates the internal pruned weight masks managed by this instance. @see `apply_pruning()`
@@ -575,15 +596,17 @@ class LotteryTicketPruner(object):
         self.dense_cumulative_pruning_rate += actual_dense_prune_percentage
 
         actual_convolutional_prune_percentage = (
-                                          1.0 - self.convolutional_cumulative_pruning_rate
-                                  ) * convolutional_prune_percentage
-        self.convolutional_cumulative_pruning_rate += actual_convolutional_prune_percentage
+            1.0 - self.convolutional_cumulative_pruning_rate
+        ) * convolutional_prune_percentage
+        self.convolutional_cumulative_pruning_rate += (
+            actual_convolutional_prune_percentage
+        )
 
         local_prune_strats = {
             "random": _prune_func_random,
             "smallest_weights": _prune_func_smallest_weights,
             "smallest_weights_layer_dependent_pruning_percentage": _prune_func_smallest_weights_layer_dependent_pruning_percentage,
-            "prune_all_zero_weights": _prune_all_zero_weights
+            "prune_all_zero_weights": _prune_all_zero_weights,
         }
         global_prune_strats = {
             "smallest_weights_global": _prune_func_smallest_weights_global,
@@ -592,17 +615,23 @@ class LotteryTicketPruner(object):
         if prune_strategy in local_prune_strats:
             number_of_prunable_layers = sum(1 for _ in self.iterate_prunables(model))
             local_prune_func = local_prune_strats[prune_strategy]
-            for i, (
-                tpl,
-                layer,
-                index,
-                initial_weights,
-                pretrained_weights,
-                current_weights,
-                mask,
+            for (
+                i,
+                (
+                    tpl,
+                    layer,
+                    index,
+                    initial_weights,
+                    pretrained_weights,
+                    current_weights,
+                    mask,
+                ),
             ) in enumerate(self.iterate_prunables(model)):
-                if local_prune_func is _prune_func_smallest_weights_layer_dependent_pruning_percentage:
-                    if i == number_of_prunable_layers -1:
+                if (
+                    local_prune_func
+                    is _prune_func_smallest_weights_layer_dependent_pruning_percentage
+                ):
+                    if i == number_of_prunable_layers - 1:
                         is_last_layer = True
                     else:
                         is_last_layer = False
@@ -614,7 +643,7 @@ class LotteryTicketPruner(object):
                         actual_dense_prune_percentage,
                         actual_convolutional_prune_percentage,
                         layer,
-                        is_last_layer
+                        is_last_layer,
                     )
                 elif local_prune_func is _prune_all_zero_weights:
                     new_mask = _prune_all_zero_weights(current_weights, mask)
